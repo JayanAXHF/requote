@@ -34,11 +34,6 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    const parser = b.addModule("parser", .{
-        .root_source_file = b.path("src/parser.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
     const writer = b.addModule("writer", .{
         .root_source_file = b.path("src/writer.zig"),
         .target = target,
@@ -83,7 +78,6 @@ pub fn build(b: *std.Build) void {
                 // can be extremely useful in case of collisions (which can happen
                 // importing modules from different packages).
                 .{ .name = "lexer", .module = lexer },
-                .{ .name = "parser", .module = parser },
                 .{ .name = "writer", .module = writer },
             },
         }),

@@ -1,0 +1,153 @@
+const std = @import("std");
+const ArrayList = std.ArrayList;
+
+const LexerError = error{
+    UnexpectedEndOfInput,
+    UnexpectedCharacter,
+    MissingDoubleQuote,
+    MissingSingleQuote,
+};
+
+pub const Token = union(enum) {
+    literal: []const u8,
+    double_quote_start: void,
+    double_quote_end: void,
+    single_quote_start: void,
+    single_quote_end: void,
+    eof: void,
+};
+
+fn isWhitespace(c: u8) bool {
+    return c == ' ' or c == '\t' or c == '\n' or c == '\r';
+}
+
+fn isDigit(c: u8) bool {
+    return c >= '0' and c <= '9';
+}
+
+pub const Lexer = struct {
+    source: []const u8,
+    start: usize,
+    current: usize,
+    tokens: ArrayList(Token),
+
+    const Self = @This();
+
+    pub fn init(allocator: std.mem.Allocator, source: []const u8) !Self {
+        return Self{
+            .source = source,
+            .current = 0,
+            .start = 0,
+            .tokens = ArrayList(Token).init(allocator),
+        };
+    }
+    pub fn deinit(self: *Self) void {
+        self.tokens.deinit();
+    }
+    pub fn isAtEnd(self: *Self) bool {
+        return self.current >= self.source.len;
+    }
+    pub fn next(self: *Self) LexerError!u8 {
+        if (self.isAtEnd()) {
+            return error.UnexpectedEndOfInput;
+        }
+        const c = self.source[self.current];
+        self.current += 1;
+        return c;
+    }
+    pub fn lex(self: *Self) LexerError!void {
+        while (!self.isAtEnd()) {
+            self.start = self.current;
+            try self.scan_tokens();
+        }
+        if (self.tokens.items.len == 0) {
+            self.tokens.append(.{ .literal = self.source[0..self.current] }) catch unreachable;
+        }
+        self.tokens.append(.{ .eof = {} }) catch unreachable;
+    }
+    pub fn scan_tokens(self: *Self) LexerError!void {
+        const c = try self.next();
+
+        switch (c) {
+            '"' => {
+                self.tokens.append(.{ .double_quote_start = {} }) catch unreachable;
+                self.start = self.current;
+
+                while (!self.isAtEnd()) {
+                    const ch = try self.next();
+                    if (ch == '"') {
+                        const literal = self.source[self.start .. self.current - 1];
+                        self.tokens.append(.{ .literal = literal }) catch unreachable;
+                        self.tokens.append(.{ .double_quote_end = {} }) catch unreachable;
+                        return;
+                    }
+                }
+                return error.MissingDoubleQuote;
+            },
+
+            '\'' => {
+                // only treat as quote if surrounded by whitespace or punctuation
+                const prev_is_space = self.start == 0 or isWhitespace(self.source[self.start - 1]);
+                const next_is_space = self.isAtEnd() or isWhitespace(try self.peek());
+
+                if (prev_is_space or next_is_space) {
+                    self.tokens.append(.{ .single_quote_start = {} }) catch unreachable;
+                    self.start = self.current;
+
+                    while (!self.isAtEnd()) {
+                        const ch = try self.next();
+                        if (ch == '\'') {
+                            const literal = self.source[self.start .. self.current - 1];
+                            self.tokens.append(.{ .literal = literal }) catch unreachable;
+                            self.tokens.append(.{ .single_quote_end = {} }) catch unreachable;
+                            return;
+                        }
+                    }
+                    return error.MissingSingleQuote;
+                } else {
+                    // treat as literal (apostrophe inside word)
+                    while (!self.isAtEnd()) {
+                        const peek_res = try self.peek();
+                        if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'') break;
+                        _ = try self.next();
+                    }
+                    const literal = self.source[self.start..self.current];
+                    self.tokens.append(.{ .literal = literal }) catch unreachable;
+                }
+            },
+
+
+            else => {
+                while (!self.isAtEnd()) {
+                    const peek_res = try self.peek();
+                    if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'') break;
+                    _ = try self.next();
+                }
+                const literal = self.source[self.start..self.current];
+                self.tokens.append(.{ .literal = literal }) catch unreachable;
+            },
+        }
+    }
+
+    pub fn finalize(self: *Self) ArrayList(Token) {
+        return self.tokens;
+    }
+
+    fn peek(self: *Self) LexerError!u8 {
+        const idx = self.current;
+        if (idx >= self.source.len) {
+            return error.UnexpectedEndOfInput;
+        }
+        return self.source[idx];
+    }
+    fn peek_next(self: *Self) LexerError!u8 {
+        const idx = self.current + 1;
+        if (idx >= self.source.len) {
+            return error.UnexpectedEndOfInput;
+        }
+        return self.source[idx];
+    }
+    fn currentChar(self: *Self) u8 {
+        return self.source[self.current];
+    }
+};
