@@ -6,6 +6,8 @@ const LexerError = error{
     UnexpectedCharacter,
     MissingDoubleQuote,
     MissingSingleQuote,
+    MissingLtexSingleQuote,
+    MissingLtexDoubleQuote,
 };
 
 pub const Token = union(enum) {
@@ -14,6 +16,10 @@ pub const Token = union(enum) {
     double_quote_end: void,
     single_quote_start: void,
     single_quote_end: void,
+    ltex_single_quote_start: void,
+    ltex_single_quote_end: void,
+    ltex_double_quote_start: void,
+    ltex_double_quote_end: void,
     eof: void,
 };
 
@@ -69,6 +75,40 @@ pub const Lexer = struct {
         const c = try self.next();
 
         switch (c) {
+            '`' => {
+                const prev_is_space = self.start == 0 or isWhitespace(self.source[self.start - 1]);
+                const next_is_space = self.isAtEnd() or isWhitespace(try self.peek());
+                if (prev_is_space or next_is_space) {
+                    if (try self.peek() == '`') {
+                        self.tokens.append(.{ .ltex_double_quote_start = {} }) catch unreachable;
+                        while (!self.isAtEnd()) {
+                            const ch = try self.next();
+                            const prev_char = self.source[self.current - 1];
+                            if (ch == '\'' and prev_char == '\'') {
+                                const literal = self.source[self.start + 2.. self.current - 1];
+                                self.tokens.append(.{ .literal = literal }) catch unreachable;
+                                self.tokens.append(.{ .ltex_double_quote_end = {} }) catch unreachable;
+                                _ = try self.next();
+                                _ = try self.next();
+                                return;
+                            }
+                        }
+                        return error.MissingLtexDoubleQuote;
+                    }
+                    self.tokens.append(.{ .ltex_single_quote_start = {} }) catch unreachable;
+                    while (!self.isAtEnd()) {
+                        const ch = try self.next();
+                        if (ch == '\'') {
+                            const literal = self.source[self.start + 1 .. self.current - 1];
+                            self.tokens.append(.{ .literal = literal }) catch unreachable;
+                            self.tokens.append(.{ .ltex_single_quote_end = {} }) catch unreachable;
+                            _ = try self.next();
+                            return;
+                        }
+                    }
+                    return error.MissingLtexSingleQuote;
+                }
+            },
             '"' => {
                 self.tokens.append(.{ .double_quote_start = {} }) catch unreachable;
                 self.start = self.current;
@@ -108,7 +148,7 @@ pub const Lexer = struct {
                     // treat as literal (apostrophe inside word)
                     while (!self.isAtEnd()) {
                         const peek_res = try self.peek();
-                        if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'') break;
+                        if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'' or peek_res == '`') break;
                         _ = try self.next();
                     }
                     const literal = self.source[self.start..self.current];
@@ -116,11 +156,10 @@ pub const Lexer = struct {
                 }
             },
 
-
             else => {
                 while (!self.isAtEnd()) {
                     const peek_res = try self.peek();
-                    if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'') break;
+                    if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'' or peek_res == '`') break;
                     _ = try self.next();
                 }
                 const literal = self.source[self.start..self.current];

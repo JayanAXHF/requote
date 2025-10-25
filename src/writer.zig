@@ -39,6 +39,18 @@ pub const Writer = struct {
             .single_quote_end => {
                 self.buffer.appendSlice("'") catch unreachable;
             },
+            .ltex_single_quote_start => {
+                self.buffer.appendSlice("`") catch unreachable;
+            },
+            .ltex_single_quote_end => {
+                self.buffer.appendSlice("' ") catch unreachable;
+            },
+            .ltex_double_quote_start => {
+                self.buffer.appendSlice("``") catch unreachable;
+            },
+            .ltex_double_quote_end => {
+                self.buffer.appendSlice("'' ") catch unreachable;
+            },
             else => {
                 //std.debug.print("{}\n", .{token});
             },
