@@ -27,8 +27,7 @@ pub const Token = union(enum) {
 
 /// Checks if a character is whitespace.
 fn isWhitespace(c: u8) bool {
-    return c == ' ' or c == '	' or c == '
-' or c == '';
+    return c == ' ' or c == '\t' or c == '\r' or c == '\n';
 }
 
 /// Checks if a character is a digit.
@@ -51,7 +50,7 @@ pub const Lexer = struct {
             .source = source,
             .current = 0,
             .start = 0,
-            .tokens = ArrayList(Token).init(allocator),
+            .tokens = std.ArrayListAligned(Token).init(allocator, .{}),
         };
     }
 
@@ -106,7 +105,7 @@ pub const Lexer = struct {
                             const ch = try self.next();
                             const prev_char = self.source[self.current - 1];
                             // Look for the closing sequence ('')
-                            if (ch == ''' and prev_char == ''') {
+                            if (ch == '\'' and prev_char == '\'') {
                                 const literal = self.source[self.start + 2.. self.current - 1];
                                 self.tokens.append(.{ .literal = literal }) catch unreachable;
                                 self.tokens.append(.{ .ltex_double_quote_end = {} }) catch unreachable;
@@ -122,7 +121,7 @@ pub const Lexer = struct {
                     while (!self.isAtEnd()) {
                         const ch = try self.next();
                         // Look for the closing quote (')
-                        if (ch == ''') {
+                        if (ch == '\'') {
                             const literal = self.source[self.start + 1 .. self.current - 1];
                             self.tokens.append(.{ .literal = literal }) catch unreachable;
                             self.tokens.append(.{ .ltex_single_quote_end = {} }) catch unreachable;
@@ -151,7 +150,7 @@ pub const Lexer = struct {
             },
 
             // Handle standard single quotes (')
-            ''' => {
+            '\'' => {
                 // only treat as quote if surrounded by whitespace or punctuation
                 const prev_is_space = self.start == 0 or isWhitespace(self.source[self.start - 1]);
                 const next_is_space = self.isAtEnd() or isWhitespace(try self.peek());
@@ -162,7 +161,7 @@ pub const Lexer = struct {
 
                     while (!self.isAtEnd()) {
                         const ch = try self.next();
-                        if (ch == ''') {
+                        if (ch == '\'') {
                             const literal = self.source[self.start .. self.current - 1];
                             self.tokens.append(.{ .literal = literal }) catch unreachable;
                             self.tokens.append(.{ .single_quote_end = {} }) catch unreachable;
@@ -174,7 +173,7 @@ pub const Lexer = struct {
                     // treat as literal (apostrophe inside word)
                     while (!self.isAtEnd()) {
                         const peek_res = try self.peek();
-                        if (isWhitespace(peek_res) or peek_res == '"' or peek_res == ''' or peek_res == '`') break;
+                        if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'' or peek_res == '`') break;
                         _ = try self.next();
                     }
                     const literal = self.source[self.start..self.current];
@@ -186,7 +185,7 @@ pub const Lexer = struct {
             else => {
                 while (!self.isAtEnd()) {
                     const peek_res = try self.peek();
-                    if (isWhitespace(peek_res) or peek_res == '"' or peek_res == ''' or peek_res == '`') break;
+                    if (isWhitespace(peek_res) or peek_res == '"' or peek_res == '\'' or peek_res == '`') break;
                     _ = try self.next();
                 }
                 const literal = self.source[self.start..self.current];

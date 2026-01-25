@@ -22,26 +22,26 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // NOTE: Command-line argument parsing with 'clap' is currently commented out.
-    //   const params = comptime clap.parseParamsComptime(
-    //       \\-h, --help            Display this help and exit.
-    //       \\-o, --output <str>    Write to FILE instead of stdout.
-    //       \\-s, --stdout <str>    An option parameter which takes an enum.
-    //       \\<str>...
-    //       \\
-    //   );
-    //   var diag = clap.Diagnostic{};
-    //   var res = clap.parse(clap.Help, &params, .{}, .{
-    //       .diagnostic = &diag,
-    //       .allocator = gpa.allocator(),
-    //       // The assignment separator can be configured. `--number=1` and `--number:1` is now
-    //       // allowed.
-    //       .assignment_separators = "=:",
-    //   }) catch |err| {
-    //       // Report useful error and exit.
-    //       try diag.reportToFile(.stderr(), err);
-    //       return err;
-    //   };
-    //   defer res.deinit();
+    const params = comptime clap.parseParamsComptime(
+        \\-h, --help               Display this help and exit.
+        \\-o, --output <string>    Write to FILE instead of stdout.
+        \\-s, --stdout <string>    An option parameter which takes an enum.
+        \\<string>...
+        \\
+    );
+    var diag = clap.Diagnostic{};
+    var res = clap.parse(clap.Help, &params, clap.parsers.default, .{
+        .diagnostic = &diag,
+        .allocator = gpa.allocator(),
+        // The assignment separator can be configured. `--number=1` and `--number:1` is now
+        // allowed.
+        .assignment_separators = "=:",
+    }) catch |err| {
+        // Report useful error and exit.
+        try diag.reportToFile(.stderr(), err);
+        return err;
+    };
+    defer res.deinit();
 
     // Allocate and process command-line arguments.
     const args = try std.process.argsAlloc(allocator);
